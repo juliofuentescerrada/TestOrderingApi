@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Permite ejecutar la API y los tests si solo hay un runtime más moderno instalado (p. ej. .NET 10). -->
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+</Project>
