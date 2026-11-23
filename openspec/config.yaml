@@ -1,0 +1,38 @@
+schema: spec-driven
+
+context: |
+  Escribe todos los artefactos en español.
+  .NET 8, Clean Architecture (Domain, Application, Infrastructure, Api), MediatR, EF Core con SQLite y JWT con permisos en el claim "scope".
+  Imita las convenciones de la referencia GET /api/orders/{id}: query y handler en un solo fichero, política orders:read y tests de integración en OrdersApiTests.
+  No añadas dependencias NuGet sin justificarlo; no hay migraciones (se usa EnsureCreated).
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the code.
+# Keep general project documentation and discoverable codebase facts out.
+# Example:
+#   context: |
+#     Designs and tasks must cover Windows, macOS, and Linux
+#     Write all artifacts in Spanish
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
