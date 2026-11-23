@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Ordering.Api;
 using Ordering.Api.Auth;
 using Ordering.Application;
 using Ordering.Infrastructure;
@@ -39,6 +40,10 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
+
+// Errores como ProblemDetails; DomainException → 400 (ADR-0001).
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
@@ -91,6 +96,8 @@ using (var scope = app.Services.CreateScope())
 {
     scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
 }
+
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
