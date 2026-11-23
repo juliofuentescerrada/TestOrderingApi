@@ -6,19 +6,19 @@ Orders API in .NET 8: Clean Architecture + MediatR + EF Core (SQLite) + JWT auth
 
 ## Context: technical interview exercise
 
-`ENUNCIADO-candidato.pdf` is the brief for a 55-min pair-programming interview where AI use is expected and evaluated (how it is steered, and how its output is reviewed). Ask about ambiguities instead of assuming; that is part of the test. Never put credentials or personal/client data in prompts.
+`ENUNCIADO-candidato.pdf` (kept local and untracked on purpose; never commit it) is the brief for a 55-min pair-programming interview where AI use is expected and evaluated (how it is steered, and how its output is reviewed). Ask about ambiguities instead of assuming; that is part of the test. Never put credentials or personal/client data in prompts.
 
-**Part 1 – `POST /api/orders`** (body: `customerId` + `lines[]` of `{sku, quantity, unitPrice}`):
+**Part 1 – `POST /api/orders`** (done, including the optional idempotency; body: `customerId` + `lines[]` of `{sku, quantity, unitPrice}`):
 1. MediatR command + handler, persisted via `IOrderRepository`.
 2. Input validation → `400` with a clear `ProblemDetails`. Rules: 1–50 lines, non-empty `sku`, `quantity > 0`, `unitPrice >= 0`, `customerId` present.
 3. Policy `orders:write`: `401` without a token, `403` without the scope.
 4. `201 Created`, with `Location` → `GET /api/orders/{id}` (route name `GetOrderById`) and the `OrderDto` as the body.
 5. At least one meaningful test.
-- Optional: an `Idempotency-Key` header (string, ≤64 chars). Same key + same body → same order. Same key + different body → choose and justify the response (typically `409`/`422`).
+- Optional: an `Idempotency-Key` header (string, ≤64 chars). Same key + same body → same order. Same key + different body → `422` (ADR-0007).
 
 **Part 2** is reviewing a PR that adds `GET /api/customers/{customerId}/orders` (id, date, total with a 10% loyalty discount over 1,000, line count, plus an audit event per query). Review it for security/authz, query performance and money logic.
 
-Gaps relevant to Part 1: there is no validation library (only MediatR) and no exception→HTTP mapping, so a `DomainException` currently becomes a `500`. The domain already enforces every rule except "at least one line": `Order.Create` rejects `Guid.Empty`, and `AddLine` checks sku, quantity, price and the 50-line limit.
+Design decisions are recorded as ADRs in `docs/adr/` (Spanish, one per decision, continue the numbering). Non-obvious fixes in code carry a one-line Spanish comment explaining why.
 
 ## Commands
 
@@ -43,7 +43,9 @@ Dependency direction: `Api → Application → Domain`, `Infrastructure → Appl
   - `OrderDto.From(order)` is the entity→DTO mapping; `Status` is serialized as a string.
   - `TimeProvider` is registered (singleton) for testable timestamps — inject it rather than calling `DateTime.UtcNow`.
 - **Infrastructure**: EF Core implementations + `AppDbContext`/configurations. `AddInfrastructure()` registers repositories, but the `DbContext` itself is registered in `Program.cs` with a lazily-read connection string so tests can override it.
-- **Api**: thin controllers that only `_sender.Send(...)` and map results to HTTP. No migrations — the schema is created by `EnsureCreated()` at startup, so model changes require deleting `ordering.db`.
+- **Api**: thin controllers that only `_sender.Send(...)` and map results to HTTP. No migrations — the schema is created by `EnsureCreated()` at startup, so model changes require deleting the local DB. With `dotnet run --project src/Ordering.Api` it lives at `src/Ordering.Api/ordering.db` (plus `-shm`/`-wal`), not at the repo root.
+  - `POST /api/orders` validates in two layers: DataAnnotations on `Contracts/CreateOrderRequest` (auto `400 ValidationProblemDetails`) and `DomainExceptionHandler`, which maps any `DomainException` to `400 ProblemDetails` app-wide.
+  - Idempotency: the controller validates `Idempotency-Key` and reads the `sub` claim (the key is per client); the `CreateOrderCommand` handler stores order + `IdempotencyRecord` in one `SaveChanges`, with PK `(Subject, Key)` resolving races (`IOrderRepository.TrySaveChangesAsync`), and returns a `CreateOrderResult` (`Created` / `Replayed` / `KeyReusedWithDifferentBody`) that the controller maps to `201` / `201` + `Idempotent-Replayed` / `422`.
 
 ### Auth
 
@@ -55,9 +57,10 @@ Dependency direction: `Api → Application → Domain`, `Infrastructure → Appl
 
 - Domain unit tests in `OrderTests.cs`; integration tests use `IClassFixture<ApiFactory>`.
 - `ApiFactory` boots the real app in the `Testing` environment with its own temp SQLite file and test JWT settings.
-- Get tokens with `TestTokens.Create("orders:read", ...)`; seed data directly via `AppDbContext` from `_factory.Services.CreateScope()` (see `OrdersApiTests.SeedOrder`).
+- Get tokens with `TestTokens.Create("orders:read", ...)`, or `TestTokens.CreateFor(subject, ...)` to pick or omit (`null`) the `sub` claim; seed data directly via `AppDbContext` from `_factory.Services.CreateScope()` (see `OrdersApiTests.SeedOrder`).
+- `HttpClient`/TestServer drop empty headers; to send one, build the request with `_factory.Server.SendAsync(ctx => ...)` (see `CreateOrderIdempotencyApiTests.Invalid_header_returns_400`).
 - `OrdersApiTests` is the reference pattern for endpoint tests: cover 401 (no token), 403 (missing scope), and the happy/404 paths.
 
 ## OpenSpec
 
-The repo uses OpenSpec (`openspec/`, `schema: spec-driven`) for change proposals; the `openspec-*` skills drive the workflow (propose → apply → verify → archive). `openspec/specs/` and `openspec/changes/` are currently empty.
+The repo uses OpenSpec (`openspec/`, `schema: spec-driven`) for change proposals; the `openspec-*` skills drive the workflow (propose → apply → verify → archive). Current capability: `openspec/specs/order-creation`; archived changes live in `openspec/changes/archive/`.
